@@ -117,7 +117,7 @@ class GPT(nn.Module):
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
-    def forward(self, idx):
+    def forward(self, idx, targets = None ):
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
         pos = torch.arange(0, T, dtype=torch.long, device=idx.device) # shape (t)
@@ -130,7 +130,11 @@ class GPT(nn.Module):
         
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
-        return logits
+        loss = None
+        if targets is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+
+        return logits, loss
 
     @classmethod
     def from_pretrained(cls, model_type):
@@ -190,15 +194,59 @@ if __name__ == "__main__":
     num_return_sequences = 5
     max_length = 30
 
-    model = GPT.from_pretrained('gpt2')
-    model.eval()
-    model.to('cuda')
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = "mps"
+    print (f"using device: {device}")
+ #   device = "cuda"   #force Cuda for debug
 
+
+#Get a data batch
     enc = tiktoken.get_encoding('gpt2')
+    with open ('input.txt', 'r') as f:
+        text = f.read()
+    text = text[:1000]
+    tokens = enc.encode(text)
+    B,T = 4,32
+    buf = torch.tensor(tokens[:B*T + 1])
+    buf = buf.to(device)
+    x = buf[:-1].view(B,T)
+    y = buf[1:].view(B,T)
+
+
+
+ #   model = GPT.from_pretrained('gpt2')
+    model = GPT(GPTConfig())
+ #   model.eval()
+    model.to(device)
+ #   logits, loss = model(x, y)
+   
+
+   # forward the model 
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+    for i in range(50):
+        optimizer.zero_grad()
+        logits, loss = model(x,y)
+        loss.backward()
+        optimizer.step()
+        print(f"step {i}, loss: {loss.item()}")
+   
+   
+   
+    import sys; sys.exit(0)
+
+
+
+
+
+
+"""     enc = tiktoken.get_encoding('gpt2')
     tokens = enc.encode("Hello, I'm a language model,")
     tokens = torch.tensor(tokens, dtype=torch.long)
     tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
-    x = tokens.to('cuda')
+    x = tokens.to(device) 
 
 
     torch.manual_seed(42)
@@ -217,4 +265,4 @@ if __name__ == "__main__":
     for i in range(num_return_sequences):
         tokens = x[i, :max_length].tolist()
         decoded = enc.decode(tokens)
-        print(">", decoded)
+        print(">", decoded)  """
