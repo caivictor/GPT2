@@ -48,10 +48,13 @@ class CausalSelfAttention(nn.Module):
    
             # manual implementation of attention
         # this materializes the large (T,T) matrix for all the queries and keys
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
-        att = F.softmax(att, dim=-1)
-        y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+
+        # att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        # att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        # att = F.softmax(att, dim=-1)
+        # y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
         # output projection
         y = self.c_proj(y)
@@ -256,8 +259,9 @@ if __name__ == "__main__":
     import argparse
     import tiktoken
     import torch._dynamo
-    torch._dynamo.config.suppress_errors = True
-
+ #   torch._dynamo.config.suppress_errors = True
+ #   PYTORCH_CUDA_ALLOC_CONF=expandable_segments= True
+    
     num_return_sequences = 5
     max_length = 30
 
@@ -275,11 +279,11 @@ if __name__ == "__main__":
 
 
 #Get a data batch
-    train_loader = DataLoaderLite(B=16, T=1024)
+    train_loader = DataLoaderLite(B=8, T=1024)
     torch.set_float32_matmul_precision('medium')
 
  #   model = GPT.from_pretrained('gpt2')
-    model = GPT(GPTConfig())
+    model = GPT(GPTConfig(vocab_size=50304))
  #   model.eval()
     model.to(device)
     model = torch.compile(model)
