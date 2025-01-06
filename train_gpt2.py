@@ -259,8 +259,8 @@ if __name__ == "__main__":
     import argparse
     import tiktoken
     import torch._dynamo
- #   torch._dynamo.config.suppress_errors = True
- #   PYTORCH_CUDA_ALLOC_CONF=expandable_segments= True
+    torch._dynamo.config.suppress_errors = True
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments= True
     
     num_return_sequences = 5
     max_length = 30
@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
 
 #Get a data batch
-    train_loader = DataLoaderLite(B=8, T=1024)
+    train_loader = DataLoaderLite(B=4, T=1024)
     torch.set_float32_matmul_precision('medium')
 
  #   model = GPT.from_pretrained('gpt2')
@@ -301,7 +301,10 @@ if __name__ == "__main__":
             logits, loss = model(x,y)
         loss.backward()
         optimizer.step()
-        torch.cuda.synchronize()
+        if device == "cuda":
+            torch.cuda.synchronize()
+        elif device == "mps":
+            torch.mps.synchronize()
         t1 = time.time()
         dt = (t1-t0)* 1000
         tokens_per_sec = (train_loader.B * train_loader.T) / (t1-t0)
