@@ -346,7 +346,7 @@ if __name__ == "__main__":
    
     max_lr = 6e-4
     min_lr = max_lr * 0.1
-    warmup_steps = 715
+    warmup_steps = 5
     max_steps = 19073
 
     def get_lr(it):
@@ -370,12 +370,11 @@ if __name__ == "__main__":
     optimizer = model.configure_optimizers(weight_decay = 0.1, learning_rate=6e-4, device=device)
 
 
-
+    enc = tiktoken.get_encoding('gpt2')
 
 
     for step in range(max_steps):
         t0 = time.time()
-
         #run val once in a while
         if step % 100 == 0:
             model.eval()
@@ -393,11 +392,41 @@ if __name__ == "__main__":
             print(f"validation loss: {val_loss_accum.item():.4f}")
 
   
-  
-        
-  
-  
-  
+        if step > 0 and step % 1000 == 0:
+            model.eval()
+            num_return_sequences = 4
+            max_length = 32
+            tokens = enc.encode("Hello, I'm a language model,")
+            tokens = torch.tensor(tokens, dtype=torch.long)
+            tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
+            xgen = tokens.to(device)
+            sample_rng = torch.Generator(device=device)
+            sample_rng.manual_seed(42)
+            while xgen.size(1) < max_length:
+                with torch.no_grad():
+                    logits, loss=model(xgen)
+                    logits = logits[:, -1, :]
+                    probs = F.softmax(logits, dim=-1)
+                    topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
+                    ix = torch.multinomial(topk_probs, 1, generator=sample_rng)
+                    xcol=torch.gather(topk_indices, -1, ix)
+                    xgen=torch.cat((xgen,xcol), dim=1)
+            for i in range(num_return_sequences):
+                tokens = xgen[i, :max_length].tolist()
+                decoded = enc.decode(tokens)
+                print(f"rank 0 smaple {i}: {decoded}")
+
+        if step >0 and (step % 1000 == 0):
+            checkpoint_path = os.path.join("./", f"model_{step:05d}.pt")
+            checkpoint = {
+                'model' : model.state_dict(),
+                'config' : model.config,
+                'step' : step,
+                'val_loss' : val_loss_accum.item()
+            }
+            torch.save(checkpoint, checkpoint_path)
+       
+
   
   
         model.train()
