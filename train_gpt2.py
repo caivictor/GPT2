@@ -236,6 +236,7 @@ class GPT(nn.Module):
         return model    
 #--------------------------------------------
 import tiktoken
+import numpy as np
 
 def load_tokens(filename):
     npt = np.load(filename)
@@ -262,11 +263,6 @@ class DataLoaderLite:
         print (f"found {len(shards)}  shards for split {split}")
         self.reset()
 
-        #state, init at shard zero
-        self.current_shard = 0
-        self.tokens = load_tokens(self.shards[self.current_shard])
-        self.current_position = self.B * self.T * self.process_rank
-
     def reset(self):
         self.current_shard = 0
         self.tokens = load_tokens(self.shards[self.current_shard])
@@ -279,7 +275,7 @@ class DataLoaderLite:
         x = (buf[:-1]).view(B,T)
         y = (buf[1:]).view(B,T)
 
-        self.current_position = B*T*self.num_processes
+        self.current_position += B*T*self.num_processes
 
         if self.current_position + (B*T*self.num_processes+1) > len(self.tokens):
             self.current_shard = (self.current_shard +1) % len(self.shards)
@@ -361,7 +357,12 @@ if __name__ == "__main__":
         return min_lr + coeff * (max_lr - min_lr)
 
 
-
+    # create the log directory we will write checkpoints to and log to
+    log_dir = "log"
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f"log.txt")
+    with open(log_file, "w") as f: # open for writing to clear the file
+        pass
 
 
 
@@ -390,6 +391,8 @@ if __name__ == "__main__":
                     loss = loss/val_loss_steps
                     val_loss_accum += loss.detach()
             print(f"validation loss: {val_loss_accum.item():.4f}")
+            with open(log_file, "a") as f:
+                f.write(f"validation loss: {val_loss_accum.item():.4f}\n")
 
   
         if step > 0 and step % 1000 == 0:
@@ -415,6 +418,9 @@ if __name__ == "__main__":
                 tokens = xgen[i, :max_length].tolist()
                 decoded = enc.decode(tokens)
                 print(f"rank 0 smaple {i}: {decoded}")
+                with open(log_file, "a") as f:
+                    f.write(f"rank 0 smaple {i}: {decoded}\n")
+ 
 
         if step >0 and (step % 1000 == 0):
             checkpoint_path = os.path.join("./", f"model_{step:05d}.pt")
@@ -457,7 +463,8 @@ if __name__ == "__main__":
         token_processed = train_loader.B * train_loader.T * grad_accum_steps
         tokens_per_sec = token_processed/ (t1-t0)
         print(f"step {step:4d} | loss: {loss_accum.item():.6f}| lr {lr:.4e}  |norm: {norm:.4f} | dt: {dt:.2f}ms| tok/sec {tokens_per_sec:.2f}")
-   
+        with open(log_file, "a") as f:
+            f.write(f"step {step:4d} | loss: {loss_accum.item():.6f}| lr {lr:.4e}  |norm: {norm:.4f} | dt: {dt:.2f}ms| tok/sec {tokens_per_sec:.2f}\n")
    
    
     import sys; sys.exit(0)
