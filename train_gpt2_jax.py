@@ -77,9 +77,9 @@ class GPT(nn.Module):
         B, T = idx.shape
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
 
-        tok_emb = nn.Embed(num_embeddings=self.config.vocab_size, features=self.config.n_embd, embedding_init=jax.random.normal(key=self.make_rng('params'), stddev=0.02), dtype=self.dtype)(idx)
+        tok_emb = nn.Embed(num_embeddings=self.config.vocab_size, features=self.config.n_embd, embedding_init=jax.random.normal(key=self.make_rng('params')), dtype=self.dtype)(idx)
         positions = jnp.arange(0, T, dtype=jnp.int32)
-        pos_emb = nn.Embed(num_embeddings=self.config.block_size, features=self.config.n_embd, embedding_init=jax.random.normal(key=self.make_rng('params'), stddev=0.02), dtype=self.dtype)(positions)
+        pos_emb = nn.Embed(num_embeddings=self.config.block_size, features=self.config.n_embd, embedding_init=jax.random.normal(key=self.make_rng('params')), dtype=self.dtype)(positions)
         x = tok_emb + pos_emb
 
         for _ in range(self.config.n_layer):
