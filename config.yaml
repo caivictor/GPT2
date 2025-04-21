@@ -1,0 +1,36 @@
+# Model Configuration
+block_size: 1024
+vocab_size: 50304 # 50257 for original GPT-2, 50304 for tiktoken gpt2 encoding
+n_layer: 12
+n_head: 12
+n_embd: 768
+attention_type: "flash" # Options: "causal", "flash" (Note: 'flash' uses the same optimized backend)
+
+# Training Hyperparameters
+optimizer_type: 'Shampoo' # Options: 'AdamW', 'Shampoo'
+total_batch_size: 524288 # Total tokens processed per optimizer step (B * T * grad_accum * world_size)
+batch_size: 16          # Micro-batch size (tokens processed per device per step)
+# T (sequence_length) is derived from block_size
+
+max_lr: 6e-4
+min_lr: 6e-5            # Calculated as max_lr * 0.1 if not specified
+warmup_steps: 10        # Number of linear warmup steps for learning rate
+max_steps: 50           # Total number of training steps (set low for quick testing)
+weight_decay: 0.1
+grad_clip: 1.0          # Gradient clipping value
+
+# Evaluation & Logging
+val_interval: 25        # How often to run validation (in steps)
+val_loss_steps: 20      # Number of batches to average for validation loss
+log_interval: 10        # How often to print training logs (in steps)
+checkpoint_interval: 50 # How often to save checkpoints (in steps)
+log_dir: "log"          # Directory to save logs and checkpoints
+
+# Sampling / Generation (during validation)
+num_return_sequences: 5 # Number of sequences to generate
+max_length: 30          # Maximum length of generated sequences
+sample_prompt: "Hello, I'm a language model," # Prompt for generation
+
+# System / Misc
+compile_model: true     # Whether to compile the model with torch.compile
+seed: 1337              # Random seed for reproducibility
